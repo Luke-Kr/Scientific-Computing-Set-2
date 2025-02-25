@@ -81,12 +81,12 @@ def simulate(height, width, steps, save_last=False):
         walker_positions = np.argwhere(new_grid == WALKER_STATE)
 
         for i, j in walker_positions:
-            new_grid = apply_vertical_boundaries(new_grid, i, j)  
+            new_grid = apply_vertical_boundaries(new_grid, i, j)
             new_grid = apply_aggregation(new_grid, i, j)
 
         # Re-check walkers before moving
         walker_positions = np.argwhere(new_grid == WALKER_STATE)
-        
+
         for i, j in walker_positions:
             new_grid = move_walker(new_grid, i, j)
 
@@ -94,12 +94,12 @@ def simulate(height, width, steps, save_last=False):
         prev_grid = np.copy(new_grid)
 
     if save_last:
-        save_simulation(results[-1], "monte_carlo_data.npy")
+        save_simulation(results[-1], "monte_carlo_result.png")
     return results
 
 
 def save_simulation(results, filename):
-    np.save(filename, results)
+    plt.imsave(filename, results, cmap="viridis")
 
 
 def animate_simulation(results):
@@ -114,10 +114,11 @@ def animate_simulation(results):
         fig, animate, frames=len(results), interval=100, blit=True)
     plt.show()
 
+
 if __name__ == "__main__":
     height = 100
     width = 100
-    steps = 1000
+    steps = 10000
 
     results = simulate(height, width, steps)
     plt.imshow(results[-1], cmap="viridis", interpolation="nearest")
