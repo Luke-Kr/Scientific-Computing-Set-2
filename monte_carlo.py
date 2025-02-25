@@ -1,86 +1,124 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import animation
+import random
+from tqdm import tqdm
 from numba import jit
+
+EMPTY_STATE = 0
+WALKER_STATE = 1
+AGGREGATE_STATE = 2
 
 
 def init_grid(height, width):
-    grid = np.zeros(height, width)
-    grid[-1, width//2] = 2
+    grid = np.zeros((height, width))
+    grid[height - 1, width//2] = AGGREGATE_STATE
     return grid
 
 
 def place_walker(grid):
-    placed = False
-    height, width = grid.shape
-
-    while not placed:
-        x = np.random.randint(0, height)
-        y = np.random.randint(0, width)
-        if grid[x, y] == 0:
-            grid[x, y] = 1
-            placed = True
-
+    empty_cells = np.argwhere(grid == EMPTY_STATE)
+    if empty_cells.size > 0:
+        x, y = empty_cells[np.random.choice(len(empty_cells))]
+        grid[x, y] = WALKER_STATE
     return grid
 
 
 def identify_neighbors(grid, i, j):
-    if grid[i, j] == 1:
-        neighbors = [
-            (i-1, j),  # up
-            (i+1, j),  # down
-            (i, j-1 % width),  # left
-            (i, j+1 % width)  # right
-        ]
+    height, width = grid.shape
+    neighbors = [
+        (max(0, i-1), j),  # Top neighbor (clamped to grid)
+        (min(height-1, i+1), j),  # Bottom neighbor (clamped to grid)
+        (i, (j-1) % width),  # Left neighbor (periodic)
+        (i, (j+1) % width)  # Right neighbor (periodic)
+    ]
 
-        return neighbors
+    return neighbors
 
 
 def move_walker(grid, i, j):
+    if grid[i, j] == WALKER_STATE:
+        neighbors = identify_neighbors(grid, i, j)
+        empty_neighbors = [(ni, nj)
+                           for ni, nj in neighbors if grid[ni, nj] == EMPTY_STATE]
 
-    neighbors = identify_neighbors(grid, i, j)
-    empty_neighbors = [(ni, nj)
-                       for ni, nj in neighbors if grid[ni, nj] == 0]
+        if empty_neighbors:
+            target_x, target_y = random.choice(empty_neighbors)
+            grid[target_x, target_y] = WALKER_STATE
+            grid[i, j] = EMPTY_STATE
 
-    if empty_neighbors:
-        target_x, target_y = np.random.choice(empty_neighbors)
-        grid[target_x, target_y] = 1
-        grid[i, j] = 0
-
-        return grid
+    return grid
 
 
 def apply_vertical_boundaries(grid, i, j):
-    pass
+    height, _ = grid.shape
+    if i == 0 or i == height - 1:
+        grid[i, j] = EMPTY_STATE  # remove walker from top and bottom rows
+        grid = place_walker(grid)  # add a new walker randomly
+    return grid
 
 
 def apply_aggregation(grid, i, j):
     neighbors = identify_neighbors(grid, i, j)
-    for n in neighbors:
-        if n == 2:
-            grid[i, j] = 2
+    for ni, nj in neighbors:
+        if grid[ni, nj] == AGGREGATE_STATE:
+            grid[i, j] = AGGREGATE_STATE
 
     return grid
 
 
-def simulate(height, width, steps):
+def simulate(height, width, steps, save_last=False):
+    results = np.zeros((steps, height, width))
     grid = init_grid(height, width)
-    for _ in range(steps):
-        new_grid = np.copy(grid)
-        # A single new walker gets placed per time step
-        new_grid = place_walker(grid)
+    prev_grid = np.copy(grid)
 
-        for i in range(height):
-            for j in range(width):
-                new_grid = apply_aggregation(new_grid, i, j)
-                new_grid = move_walker(new_grid, i, j)
+    for k in tqdm(range(steps), desc="Simulating", total=steps):
+        new_grid = np.copy(prev_grid)
 
-    return grid
+        # Ensure only one walker is added per step
+        new_grid = place_walker(new_grid)
 
+        walker_positions = np.argwhere(new_grid == WALKER_STATE)
+
+        for i, j in walker_positions:
+            new_grid = apply_vertical_boundaries(new_grid, i, j)  
+            new_grid = apply_aggregation(new_grid, i, j)
+
+        # Re-check walkers before moving
+        walker_positions = np.argwhere(new_grid == WALKER_STATE)
+        
+        for i, j in walker_positions:
+            new_grid = move_walker(new_grid, i, j)
+
+        results[k] = new_grid
+        prev_grid = np.copy(new_grid)
+
+    if save_last:
+        save_simulation(results[-1], "monte_carlo_data.npy")
+    return results
+
+
+def save_simulation(results, filename):
+    np.save(filename, results)
+
+
+def animate_simulation(results):
+    fig, ax = plt.subplots()
+    img = ax.imshow(results[0], cmap="viridis", interpolation="nearest")
+
+    def animate(i):
+        img.set_data(results[i])
+        return [img]
+
+    ani = animation.FuncAnimation(
+        fig, animate, frames=len(results), interval=100, blit=True)
+    plt.show()
 
 if __name__ == "__main__":
     height = 100
     width = 100
     steps = 1000
 
-    plt.imshow(grid)
+    results = simulate(height, width, steps)
+    plt.imshow(results[-1], cmap="viridis", interpolation="nearest")
     plt.show()
