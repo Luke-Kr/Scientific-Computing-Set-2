@@ -5,6 +5,7 @@ import random
 from tqdm import tqdm
 from numba import jit
 
+
 EMPTY_STATE = 0
 WALKER_STATE = 1
 AGGREGATE_STATE = 2
@@ -12,7 +13,7 @@ AGGREGATE_STATE = 2
 
 def init_grid(height, width):
     grid = np.zeros((height, width))
-    grid[height - 1, width//2] = AGGREGATE_STATE
+    grid[height - 1, (width//2)] = AGGREGATE_STATE
     return grid
 
 
@@ -58,16 +59,21 @@ def apply_vertical_boundaries(grid, i, j):
     return grid
 
 
-def apply_aggregation(grid, i, j):
+def apply_aggregation(grid, i, j, p_s):
+    p = random.random()  # Generate a random number between 0 and 1
     neighbors = identify_neighbors(grid, i, j)
+    random.shuffle(neighbors)  # Randomize neighbor check order
+
     for ni, nj in neighbors:
-        if grid[ni, nj] == AGGREGATE_STATE:
-            grid[i, j] = AGGREGATE_STATE
+        if grid[ni, nj] == AGGREGATE_STATE and p <= p_s:
+            grid[i, j] = AGGREGATE_STATE  # Walker aggregates
+            return grid  # Stop further processing, as aggregation happened
 
-    return grid
+    return grid  # If no aggregation, the walker keeps moving
 
 
-def simulate(height, width, steps, save_last=False):
+
+def simulate(height, width, steps, p_s, save_last=False):
     results = np.zeros((steps, height, width))
     grid = init_grid(height, width)
     prev_grid = np.copy(grid)
@@ -82,7 +88,7 @@ def simulate(height, width, steps, save_last=False):
 
         for i, j in walker_positions:
             new_grid = apply_vertical_boundaries(new_grid, i, j)
-            new_grid = apply_aggregation(new_grid, i, j)
+            new_grid = apply_aggregation(new_grid, i, j, p_s)
 
         # Re-check walkers before moving
         walker_positions = np.argwhere(new_grid == WALKER_STATE)
@@ -115,11 +121,35 @@ def animate_simulation(results):
     plt.show()
 
 
-if __name__ == "__main__":
-    height = 100
-    width = 100
-    steps = 10000
+def p_sweep(height, width, steps, p_s_vals):
+    results_arr = []
 
-    results = simulate(height, width, steps)
-    plt.imshow(results[-1], cmap="viridis", interpolation="nearest")
+    for p_s in p_s_vals:
+        print(f"Simulating for p_s = {p_s}")
+        result = simulate(height, width, steps, p_s)  # Run simulation
+        results_arr.append(result)
+        print("Done")
+
+    return results_arr
+
+
+def plot_p_sweep(results_arr, p_s_vals):
+    fig, ax = plt.subplots(2, 3, figsize=(15, 10))
+
+    for i, result in enumerate(results_arr):
+        ax[i // 3, i % 3].imshow(result[-1], cmap="viridis")
+        ax[i // 3, i % 3].set_title(fr"$p_s$ = {p_s_vals[i]:.1f}")
+        ax[i // 3, i % 3].axis("off")  # Hide axes
+
+    plt.tight_layout()
     plt.show()
+
+
+if __name__ == "__main__":
+    height = 101
+    width = 101
+    steps = 2000
+    	
+    p_s = 1
+    results = simulate(height, width, steps, p_s)
+    animate_simulation(results)
