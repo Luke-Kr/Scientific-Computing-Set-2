@@ -18,11 +18,13 @@ def init_grid(height, width):
 
 
 def place_walker(grid):
-    empty_cells = np.argwhere(grid == EMPTY_STATE)
+    empty_cells = np.argwhere(grid[1, :] == EMPTY_STATE).flatten()
+    
     if empty_cells.size > 0:
-        x, y = empty_cells[np.random.choice(len(empty_cells))]
-        grid[x, y] = WALKER_STATE
+        y = np.random.choice(empty_cells)  # Choose a column index
+        grid[1, y] = WALKER_STATE  # Place walker at row 1, chosen column
     return grid
+
 
 
 def identify_neighbors(grid, i, j):
@@ -73,7 +75,7 @@ def apply_aggregation(grid, i, j, p_s):
 
 
 
-def simulate(height, width, steps, p_s, save_last=False):
+def simulate(height, width, steps, p_s, save_plot=False):
     results = np.zeros((steps, height, width))
     grid = init_grid(height, width)
     prev_grid = np.copy(grid)
@@ -99,7 +101,7 @@ def simulate(height, width, steps, p_s, save_last=False):
         results[k] = new_grid
         prev_grid = np.copy(new_grid)
 
-    if save_last:
+    if save_plot:
         save_simulation(results[-1], "monte_carlo_result.png")
     return results
 
@@ -145,6 +147,10 @@ def plot_p_sweep(results_arr, p_s_vals):
     plt.show()
 
 
+def plot_last_frame(results):
+    plt.imshow(results[-1], cmap="viridis")
+    plt.show()
+
 if __name__ == "__main__":
     height = 101
     width = 101
@@ -152,4 +158,4 @@ if __name__ == "__main__":
     	
     p_s = 1
     results = simulate(height, width, steps, p_s)
-    animate_simulation(results)
+    plot_last_frame(results)
