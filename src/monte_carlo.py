@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
-import random
-from tqdm import tqdm
 from numba import njit
 
+np.random.seed(0)
 
 EMPTY_STATE = 0
 WALKER_STATE = 1
@@ -86,7 +85,7 @@ def apply_aggregation(grid, i, j, height, width, p_s):
 def simulate(height, width, steps, p_s):
     results = np.zeros((steps, height, width), dtype=np.int64)
     grid = np.zeros((height, width), dtype=np.int64)
-    grid[height - 1, width // 2] = AGGREGATE_STATE  # Init grid
+    grid = init_grid(height, width)
 
     for k in range(steps):
         print(f"Step {k+1}/{steps}")
@@ -109,6 +108,12 @@ def simulate(height, width, steps, p_s):
         for pos in walker_positions:
             i, j = pos
             new_grid = move_walker(new_grid, i, j, height, width)
+
+        walker_positions = np.argwhere(new_grid == WALKER_STATE)
+
+        for pos in walker_positions:
+            i, j = pos
+            new_grid = apply_vertical_boundaries(new_grid, i, j)
 
         results[k] = new_grid
         grid = new_grid  # Update grid
@@ -148,11 +153,12 @@ def p_sweep(height, width, steps, p_s_vals):
 def plot_p_sweep(results_arr, p_s_vals, save=False):
     num_plots = len(p_s_vals)
     rows = (num_plots // 3) + (num_plots % 3 > 0)  # Auto-calculate rows
-    fig, ax = plt.subplots(rows, 3, figsize=(15, 5 * rows), squeeze=False)  # Ensure it's always 2D
+    fig, ax = plt.subplots(rows, 3, figsize=(
+        15, 5 * rows), squeeze=False)  # Ensure it's always 2D
 
     for i, result in enumerate(results_arr):
         r, c = i // 3, i % 3
-        ax[r, c].imshow(result[-1], cmap="viridis")
+        ax[r, c].imshow(result[-1], cmap="cubehelix")
         ax[r, c].set_title(fr"$p_s$ = {p_s_vals[i]:.1f}")
         ax[r, c].axis("off")
 
@@ -167,15 +173,16 @@ def plot_p_sweep(results_arr, p_s_vals, save=False):
 
 
 def plot_last_frame(results):
-    plt.imshow(results[-1], cmap="viridis")
+    plt.imshow(results[-1], cmap="viridis_r")
     plt.show()
 
 
 if __name__ == "__main__":
     height = 101
     width = 101
-    steps = 5000
+    steps = 10_000
 
-    p_s_vals = np.linspace(0.1, 0.9, 3)
-    results_arr = p_sweep(height, width, steps, p_s_vals)
-    plot_p_sweep(results_arr, p_s_vals, save=True)
+    p_s_vals = np.linspace(0.1, 0.5, 3)
+    results = simulate(height, width, steps, p_s_vals[1])
+    shortened_results = results[9000:10000]
+    animate_simulation(shortened_results)
