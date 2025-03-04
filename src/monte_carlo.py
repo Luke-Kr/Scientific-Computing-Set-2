@@ -82,13 +82,17 @@ def apply_aggregation(grid, i, j, height, width, p_s):
 
 
 @njit
-def simulate(height, width, steps, p_s):
-    results = np.zeros((steps, height, width), dtype=np.int64)
+def simulate(height, width, size, p_s, max_steps):
+    # Pre-allocate with a reasonable max_steps value
+    results = np.zeros((max_steps, height, width), dtype=np.int64)
     grid = np.zeros((height, width), dtype=np.int64)
     grid = init_grid(height, width)
 
-    for k in range(steps):
-        print(f"Step {k+1}/{steps}")
+    cluster_size = 0
+    step = 0
+
+    while cluster_size < size and step < max_steps:
+        print(f"Step {step}")
         new_grid = grid.copy()
 
         # Place walker
@@ -115,10 +119,15 @@ def simulate(height, width, steps, p_s):
             i, j = pos
             new_grid = apply_vertical_boundaries(new_grid, i, j)
 
-        results[k] = new_grid
+        results[step] = new_grid
         grid = new_grid  # Update grid
 
-    return results
+        cluster_size = np.sum(grid == AGGREGATE_STATE)
+        step += 1
+
+    print(f"Simulation finished at step {step}. Cluster size: {cluster_size}")
+    # Return only the filled portion of the results array
+    return results[:step]
 
 
 def save_simulation(results, filename):
@@ -134,29 +143,53 @@ def animate_simulation(results):
         return [img]
 
     ani = animation.FuncAnimation(
-        fig, animate, frames=len(results), interval=100, blit=True)
+        fig, animate, frames=len(results), interval=50, blit=True)
     plt.show()
 
 
-def p_sweep(height, width, steps, p_s_vals):
+def p_sweep(height, width, steps, p_s_vals, max_steps, num_runs):
     results_arr = []
+    avg_densities = []
 
     for p_s in p_s_vals:
-        print(f"Simulating for p_s = {p_s}")
-        result = simulate(height, width, steps, p_s)  # Run simulation
-        results_arr.append(result)
-        print("Done")
+        densities = []
+        p_s_results = []
+        for i in range(num_runs):
+            print(f"Simulating for p_s = {p_s}. Run {i+1}/{num_runs}...")
+            result = simulate(height, width, steps, p_s, max_steps)  # Run simulation
+            p_s_results.append(result)
+            density = calculate_density(result, steps)
+            densities.append(density)
+        
+        # Append the first result from each p_s value
+        results_arr.append(p_s_results[0])
+        
+        avg_density = np.mean(densities)
+        avg_densities.append(avg_density)
 
-    return results_arr
+    return results_arr, avg_densities
+
+
+def plot_avg_density(p_s_vals, avg_densities, save=False):
+    plt.plot(p_s_vals, avg_densities, "bo")
+    plt.xlabel(r"$p_s$")
+    plt.ylabel("Average Density")
+    plt.title("Average Density vs. $p_s$")
+    plt.grid(True)
+    if save:
+        plt.savefig("fig/avg_density.png")
+    plt.show()
 
 
 def plot_p_sweep(results_arr, p_s_vals, save=False):
+    # Assuming results_arr contains multiple runs, we'll select the first result for each p_s value
+    first_results = results_arr[::len(p_s_vals)]  # Take every len(p_s_vals)th result
+    
     num_plots = len(p_s_vals)
     rows = (num_plots // 3) + (num_plots % 3 > 0)  # Auto-calculate rows
-    fig, ax = plt.subplots(rows, 3, figsize=(
-        15, 5 * rows), squeeze=False)  # Ensure it's always 2D
+    fig, ax = plt.subplots(rows, 3, figsize=(15, 5 * rows), squeeze=False)  # Ensure it's always 2D
 
-    for i, result in enumerate(results_arr):
+    for i, result in enumerate(first_results):
         r, c = i // 3, i % 3
         ax[r, c].imshow(result[-1], cmap="cubehelix")
         ax[r, c].set_title(fr"$p_s$ = {p_s_vals[i]:.1f}")
@@ -171,18 +204,43 @@ def plot_p_sweep(results_arr, p_s_vals, save=False):
         plt.savefig("fig/p_sweep.png")
     plt.show()
 
-
 def plot_last_frame(results):
-    plt.imshow(results[-1], cmap="viridis_r")
+    plt.imshow(results[-1], cmap="magma")
     plt.show()
+
+
+@njit
+def calculate_density(results, size):
+    last_frame = results[-1]
+
+    # Find aggregate positions
+    aggregate_positions = np.argwhere(last_frame == AGGREGATE_STATE)
+
+    # Cluster height: max row - min row
+    cluster_height = (aggregate_positions[:, 0].max() -
+                      aggregate_positions[:, 0].min() + 1)
+
+    # Cluster width: max column - min column
+    cluster_width = (aggregate_positions[:, 1].max() -
+                     aggregate_positions[:, 1].min() + 1)
+
+    density = size / (cluster_height * cluster_width)
+    return density
 
 
 if __name__ == "__main__":
     height = 101
     width = 101
-    steps = 10_000
+    size = 500
+    p_s_vals = np.linspace(0.1, 0.9, 3)
+    max_steps = 16_000
+    num_runs = 2
+    
+    #results = simulate(height, width, size, p_s_vals[1], max_steps)
+    #plot_last_frame(results)
+    # shortened_results = results[7500:-1]
+    # animate_simulation(shortened_results)
 
-    p_s_vals = np.linspace(0.1, 0.5, 3)
-    results = simulate(height, width, steps, p_s_vals[1])
-    shortened_results = results[9000:10000]
-    animate_simulation(shortened_results)
+    results_arr, avg_densities = p_sweep(height, width, size, p_s_vals, max_steps, num_runs)
+    plot_p_sweep(results_arr, p_s_vals, save=True)
+    plot_avg_density(p_s_vals, avg_densities, save=True)
