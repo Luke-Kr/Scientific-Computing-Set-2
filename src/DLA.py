@@ -1,16 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from numba import jit
-from scipy.ndimage import binary_dilation
+from numba import jit, prange
 from matplotlib.animation import FuncAnimation
-import matplotlib.colors as mcolors
 
 
 
 
 def init_mask(N):
     mask = np.zeros((N, N), dtype=bool)
-    print(mask.shape)
+    # print(mask.shape)
     mask[-1, N//2] = True
 
     return mask
@@ -23,7 +21,6 @@ def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
         for i in range(1, N-1):
             for j in range(N):
                 if mask[i, j] == 1.0:
-                    # grid[i, j] = 0
                     continue
                 old = grid[i, j]
                 left = grid[i, (j - 1) % (N)]
@@ -38,32 +35,36 @@ def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
 
         # Check for convergence
         if np.allclose(grid, history[-1], atol=tol):
-            print(f"Converged at t = {t}")
+            # print(f"Converged at t = {t}")
             break
         history.append(grid.copy())
 
+    return grid, t
 
-    # fig, ax = plt.subplots()
-    # img = ax.imshow(grid, cmap='viridis')
+@jit(nopython=True)
+def get_candidates(eta, grid, N, mask):
+    
+    indices = []
+    weights = []
 
-    # def update(frame):
-    #     # image = grid_history[frame]
-    #     # image[mask_history[frame]] = 10
-    #     # img.set_data(mask_history[frame])  # Update the data of the existing image
-    #     # img2.set_data(grid_history[frame])
-    #     img.set_data(history[frame])
-    #     ax.set_title(f"Frame {frame}")
-    #     return img
+    for i in range(N):
+        for j in range(N):
+            if mask[i, j]:
+                continue  # Skip occupied cells
 
-    # ani = FuncAnimation(fig, update, frames=len(history), interval=10)
-    # plt.colorbar(img)
-    # plt.show()
-    return grid
+            left = mask[i, (j - 1) % (N)]
+            right = mask[i, (j + 1) % (N)]
+            up = mask[i + 1, j] if i < N - 1 else False
+            down = mask[i - 1, j] if i > 0 else False
 
+            if left or right or up or down:
+                # border_mask[i, j] = True
+                indices.append((i, j))
+                weights.append(grid[i, j] ** eta)
 
+    return weights, indices
 
-# @jit(nopython=True)
-def dla_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray):
+def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray):
     """
     Runs the Successive Over-Relaxation (SOR) iterative method for solving Laplace's equation.
 
@@ -79,38 +80,20 @@ def dla_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
     """
     mask_history = [mask.copy()]
     grid_history = [grid.copy()]
-    for t in range(1, max_iter + 1):
-
-        grid = sor_simulation(omega, grid, max_iter, N, tol, mask)
-        mask_history.append(mask.copy())
-        grid_history.append(grid.copy())
-        # continue
-
-        # border_mask = np.zeros((N, N), dtype=np.bool_)
-        indices = []
-        weights = []
-
-        for i in range(N):
-            for j in range(N):
-                if mask[i, j]:
-                    continue  # Skip occupied cells
-
-                left = mask[i, (j - 1) % (N)]
-                right = mask[i, (j + 1) % (N)]
-                up = mask[i + 1, j] if i < N - 1 else False
-                down = mask[i - 1, j] if i > 0 else False
-
-                if left or right or up or down:
-                    # border_mask[i, j] = True
-                    indices.append((i, j))
-                    weights.append(grid[i, j] ** 0.5)
-
-                    # print(f"i: {i}, j: {j}, grid[i, j]: {grid[i, j]}")
-
-        weights = np.array(weights)
+    convergence_times = []
+    for _ in range(1, max_iter + 1):
+        grid, t = sor_simulation(omega, grid, max_iter, N, tol, mask)
+        convergence_times.append(t)
+        weights, indices = get_candidates(eta, grid, N, mask)
         if len(indices) > 0:
             # Normalize to sum to 1 (assuming all weights are non-negative)
-            probabilities = weights / np.sum(weights)
+            sum = np.sum(weights)
+            if sum == 0:
+                print("No food")
+                return mask_history, grid_history
+                # probabilities = np.ones_like(weights) / len(weights)
+            # else:
+            probabilities = weights / sum
             # print(weights, probabilities)
 
             # Choose an index with weighted probability
@@ -122,22 +105,12 @@ def dla_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
             assert not mask[chosen_idx], "Chosen index is already occupied."
             mask[chosen_idx] = True
             grid[chosen_idx] = 0
-            # print(grid)
-            print("Chosen index:", chosen_idx)
         else:
             print("No valid indices to choose from.")
         mask_history.append(mask.copy())
         grid_history.append(grid.copy())
-    return mask_history, grid_history
-
-
-    #     # # Check for convergence
-    #     # if np.allclose(grid, history[-1], atol=tol):
-    #     #     print(f"Converged at t = {t}")
-    #     #     break
-    #     # history.append(grid.copy())
-    # return border_mask
-    # return history, t
+    print(f"Avg convergence time: {np.mean(convergence_times)}, std: {np.std(convergence_times)}")
+    return mask_history, grid_history, convergence_times
 
 
 if __name__ == '__main__':
@@ -145,7 +118,8 @@ if __name__ == '__main__':
     N = 100            # Grid size (N x N)
     max_iter = 1000
     tol = 1e-5
-    omega = 1.5  # Relaxation factor
+    omega = 1.8  # Relaxation factor
+    eta = 0.2  # Growth probability
     print(f"max_iter: {max_iter}")
 
     mask = init_mask(N)
@@ -157,24 +131,28 @@ if __name__ == '__main__':
     print("Grid shape:", grid.shape)
     print(grid)
 
-    mask_history, grid_history = dla_simulation(omega, grid, max_iter, N, tol, mask)
-   
+    mask_history, grid_history, _ = dla_simulation(omega, eta, grid, max_iter, N, tol, mask)
+    
+    mask_history = np.array(mask_history, dtype=bool)
+    print(f"Final mask: {mask_history[-1]}")
+    np.savetxt("mask.csv", mask_history[-1], delimiter=" ", fmt="%d")
+
+    # Find the first array that has a true value
+    final_height = np.argmax(np.any(mask_history[-1], axis=1))
+    print(f"Final height: {N - final_height}")
+    print(mask_history[-1][final_height])
+    
+
     # animate the simulation
     fig, ax = plt.subplots()
 
-    # img2 = ax.imshow(grid_history[0], cmap='inferno', alpha=0.5)
-    # img = ax.imshow(mask_history[0], cmap='viridis', alpha=0.5)
     image = grid_history[0]
     image[mask_history[0]] = 10
     img = ax.imshow(image, cmap='viridis', alpha=1, vmin=0, vmax=1)
-    # img.set_data(mask_history[frame])  # Update the data of the existing image
-    # img2.set_data(grid_history[frame])
 
     def update(frame):
         image = grid_history[frame]
         image[mask_history[frame]] = 10
-        # img.set_data(mask_history[frame])  # Update the data of the existing image
-        # img2.set_data(grid_history[frame])
         img.set_data(image)
         ax.set_title(f"Frame {frame}")
         return img
