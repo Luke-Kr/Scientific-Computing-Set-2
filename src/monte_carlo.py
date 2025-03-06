@@ -148,26 +148,37 @@ def animate_simulation(results):
 
 
 def p_sweep(height, width, steps, p_s_vals, max_steps, num_runs):
-    results_arr = []
+    # Store the first run of each p_s value for visualization
+    visualization_results = []
+    # Store all results for each p_s value for statistical analysis
+    all_results = []
     avg_densities = []
 
     for p_s in p_s_vals:
         densities = []
-        p_s_results = []
+        p_s_results = []  # All results for this p_s value
+        
         for i in range(num_runs):
             print(f"Simulating for p_s = {p_s}. Run {i+1}/{num_runs}...")
             result = simulate(height, width, steps, p_s, max_steps)  # Run simulation
+            
+            # Store the result for statistical analysis
             p_s_results.append(result)
+            
+            # Store the first run for visualization
+            if i == 0:
+                visualization_results.append(result)
+                
             density = calculate_density(result, steps)
             densities.append(density)
         
-        # Append the first result from each p_s value
-        results_arr.append(p_s_results[0])
+        # Store all results for this p_s value
+        all_results.append(p_s_results)
         
         avg_density = np.mean(densities)
         avg_densities.append(avg_density)
 
-    return results_arr, avg_densities
+    return visualization_results, avg_densities, all_results
 
 
 def plot_avg_density(p_s_vals, avg_densities, save=False):
@@ -181,24 +192,23 @@ def plot_avg_density(p_s_vals, avg_densities, save=False):
     plt.show()
 
 
-def plot_p_sweep(results_arr, p_s_vals, save=False):
-    # Assuming results_arr contains multiple runs, we'll select the first result for each p_s value
-    first_results = results_arr[::len(p_s_vals)]  # Take every len(p_s_vals)th result
-    
+def plot_p_sweep(visualization_results, p_s_vals, save=False):
     num_plots = len(p_s_vals)
     rows = (num_plots // 3) + (num_plots % 3 > 0)  # Auto-calculate rows
     fig, ax = plt.subplots(rows, 3, figsize=(15, 5 * rows), squeeze=False)  # Ensure it's always 2D
 
-    for i, result in enumerate(first_results):
+    for i in range(len(visualization_results)):
         r, c = i // 3, i % 3
-        ax[r, c].imshow(result[-1], cmap="cubehelix")
+        ax[r, c].imshow(visualization_results[i][-1], cmap="cubehelix")
         ax[r, c].set_title(fr"$p_s$ = {p_s_vals[i]:.1f}")
         ax[r, c].axis("off")
 
     # Hide unused subplots
     for i in range(num_plots, rows * 3):
-        fig.delaxes(ax[i // 3, i % 3])
-
+        r, c = i // 3, i % 3
+        if r < len(ax) and c < len(ax[0]):
+            ax[r, c].axis('off')
+            
     plt.tight_layout()
     if save:
         plt.savefig("fig/p_sweep.png")
@@ -232,7 +242,7 @@ if __name__ == "__main__":
     height = 101
     width = 101
     size = 500
-    p_s_vals = np.linspace(0.1, 0.9, 3)
+    p_s_vals = np.linspace(0.1, 0.9, 5)
     max_steps = 16_000
     num_runs = 2
     
@@ -241,6 +251,6 @@ if __name__ == "__main__":
     # shortened_results = results[7500:-1]
     # animate_simulation(shortened_results)
 
-    results_arr, avg_densities = p_sweep(height, width, size, p_s_vals, max_steps, num_runs)
-    plot_p_sweep(results_arr, p_s_vals, save=True)
+    visualization_results, avg_densities, all_results = p_sweep(height, width, size, p_s_vals, max_steps, num_runs)
+    plot_p_sweep(visualization_results, p_s_vals, save=True)
     plot_avg_density(p_s_vals, avg_densities, save=True)
