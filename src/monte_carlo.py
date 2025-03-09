@@ -1,5 +1,5 @@
 """
-Diffusion Limited Aggregation (DLA) Simulation
+Monte Carlo Diffusion Limited Aggregation (DLA) Simulation
 
 This module simulates the growth of a DLA cluster with varying sticking probabilities (p_s).
 It models the aggregation process where particles perform random walks until they
