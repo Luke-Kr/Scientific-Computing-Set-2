@@ -11,9 +11,21 @@ The simulation shows how different sticking probabilities affect the resulting c
 
 Upon running the code, some example clusters given p_r will be saved under fig/p_sweep. The resulting statistics will be saved under fig/cluster_metrics.png
 
+## 2.3 Gray-Scott Model Simulation
+
+A Python implementation of the Gray-Scott reaction-diffusion model. This simulation models the interaction between two chemicals, U and V, which diffuse and react with each other on a 2D grid. The model supports various boundary conditions including periodic, Dirichlet, Neumann, and Robin.
+
+The simulation demonstrates how different parameters affect the resulting patterns, including:
+- Diffusion rates (Du, Dv)
+- Feed rate (f)
+- Kill rate (k)
+- Boundary conditions
+
+Upon running the code, the resulting concentration of chemical V will be saved as an image under fig/gray_scott.png.
+
 ## Notebook
 
-Run notebook.ipynb in order to have all relevant, output generating functions inone file.
+Run notebook.ipynb in order to have all relevant, output generating functions in one file.
 
 ## Requirements
 
