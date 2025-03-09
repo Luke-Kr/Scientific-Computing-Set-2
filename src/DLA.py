@@ -60,6 +60,51 @@ def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
     return grid, t
 
 @jit(nopython=True)
+def sor_simulation_optimize(y:int, x:int, omega: float, grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray) -> tuple:
+    """
+    Perform a SOR simulation on the grid.
+
+    Args:
+    omega (float): Relaxation factor
+    grid (np.ndarray): Grid
+    max_iter (int): Maximum number of iterations
+    N (int): Grid size
+    tol (float): Tolerance for convergence
+    mask (np.ndarray): Mask for occupied cells
+
+    Returns:
+    tuple: Tuple containing the final grid and the number of iterations to converge
+    """
+
+    history = [grid.copy()]
+    for t in range(1, max_iter + 1):
+        for i in range(max(1, y-t), min(y+t+1, N-1)):
+            if x+t >= N or x-t < 0:
+                jrange = range(N)
+            else:
+                jrange = range(x-t, x+t+1)
+            for j in jrange:
+                if mask[i, j] == 1.0:
+                    continue
+                old = grid[i, j]
+                left = grid[i, (j - 1) % (N)]
+                right = grid[i, (j + 1) % (N)]
+                up = grid[i + 1, j]
+                down = grid[i - 1, j]
+
+                grid[i, j] = (1 - omega) * old + (omega / 4) * \
+                    (up + down + left + right)
+                if grid[i, j] < 0:
+                    grid[i, j] = 0
+
+        # Check for convergence
+        if np.allclose(grid, history[-1], atol=tol):
+            break
+        history.append(grid.copy())
+
+    return grid, t
+
+@jit(nopython=True)
 def get_candidates(eta, grid, N, mask):
     """
     Get the indices of the candidate cells for the next particle and their weights.
@@ -94,7 +139,7 @@ def get_candidates(eta, grid, N, mask):
 
     return weights, indices
 
-def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_size: int, N: int, tol: float, mask: np.ndarray) -> tuple:
+def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_size: int, N: int, tol: float, mask: np.ndarray, optimize: bool = False) -> tuple:
     """
     Simulate a DLA cluster growth using the SOR method.
 
@@ -113,8 +158,11 @@ def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_size: int, N:
     mask_history = [mask.copy()]
     grid_history = [grid.copy()]
     convergence_times = []
-    for _ in range(1, max_size + 1):
-        grid, t = sor_simulation(omega, grid, 1000, N, tol, mask)
+    for s in range(1, max_size + 1):
+        if optimize and s > 1:
+            grid, t = sor_simulation_optimize(chosen_idx[0], chosen_idx[1], omega, grid, 1000, N, tol, mask)
+        else:
+            grid, t = sor_simulation(omega, grid, 1000, N, tol, mask)
         convergence_times.append(t)
         weights, indices = get_candidates(eta, grid, N, mask)
         if len(indices) > 0:
@@ -123,7 +171,6 @@ def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_size: int, N:
                 print("No food")
                 return mask_history, grid_history
             probabilities = weights / sum
-            # print(weights, probabilities)
 
             # Choose an index with weighted probability
             chosen_flat_idx = np.random.choice(len(weights), p=probabilities)
@@ -164,17 +211,17 @@ def find_optimal_omega() -> np.ndarray:
 
 if __name__ == '__main__':
     # Parameters
-    N = 100            # Grid size (N x N)
+    N = 150            # Grid size (N x N)
     max_size = 1000
     tol = 1e-5
     omega = 1.8  # Relaxation factor
-    eta = 0.2  # Growth probability
+    eta = 1.0  # Growth probability
 
 
     mask = init_mask(N)
     grid = np.zeros((N, N))
     grid[0, :] = 1.0
-    mask_history, grid_history, _ = dla_simulation(omega, eta, grid, max_size, N, tol, mask)
+    mask_history, grid_history, _ = dla_simulation(omega, eta, grid, max_size, N, tol, mask, True)
     mask_history = np.array(mask_history, dtype=bool)
 
     # animate the simulation

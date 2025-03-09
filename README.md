@@ -1,5 +1,11 @@
 ## Scientific-Computing-Set-2
 
+## 2.1 Diffusion Limited Aggregation
+
+A python implementation of DLA making use of the diffusion equation solved by SOR.  This simulation models the growth of fractal-like structures that form when the growth grows in accordance with the diffusion of nutrients.
+
+Upon running the code an animation of the growth will be played according to the parameters defined in the file.
+
 ## 2.2 Monte Carlo Diffusion Limited Aggregation (DLA) Simulation
 
 A Python implementation of Monte Carlo Diffusion Limited Aggregation with variable sticking probabilities. This simulation models the growth of fractal-like structures that form when particles undergoing random motion attach to a growing aggregate.
@@ -33,13 +39,4 @@ Run notebook.ipynb in order to have all relevant, output generating functions in
 - NumPy
 - Matplotlib
 - Numba
-
-## Installation
-
-Clone this repository and install the required dependencies:
-
-```bash
-git clone https://github.com/yourusername/dla-simulation.git
-cd dla-simulation
-pip install numpy matplotlib numba
 
