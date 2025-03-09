@@ -1,20 +1,39 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from numba import jit, prange
+from numba import jit
 from matplotlib.animation import FuncAnimation
 
+def init_mask(N) -> np.ndarray:
+    """
+    Initialize the mask for the occupied cells.
+    
+    Args:
+    N (int): Grid size
 
-
-
-def init_mask(N):
+    Returns:
+    np.ndarray: Mask for the occupied cells
+    """
     mask = np.zeros((N, N), dtype=bool)
-    # print(mask.shape)
     mask[-1, N//2] = True
 
     return mask
 
 @jit(nopython=True)
-def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray):
+def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray) -> tuple:
+    """
+    Perform a SOR simulation on the grid.
+
+    Args:
+    omega (float): Relaxation factor
+    grid (np.ndarray): Grid
+    max_iter (int): Maximum number of iterations
+    N (int): Grid size
+    tol (float): Tolerance for convergence
+    mask (np.ndarray): Mask for occupied cells
+
+    Returns:
+    tuple: Tuple containing the final grid and the number of iterations to converge
+    """
 
     history = [grid.copy()]
     for t in range(1, max_iter + 1):
@@ -35,7 +54,6 @@ def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
 
         # Check for convergence
         if np.allclose(grid, history[-1], atol=tol):
-            # print(f"Converged at t = {t}")
             break
         history.append(grid.copy())
 
@@ -43,6 +61,18 @@ def sor_simulation(omega: float, grid: np.ndarray, max_iter: int, N: int, tol: f
 
 @jit(nopython=True)
 def get_candidates(eta, grid, N, mask):
+    """
+    Get the indices of the candidate cells for the next particle and their weights.
+    
+    Args:
+    eta (float): Growth probability
+    grid (np.ndarray): Grid
+    N (int): Grid size
+    mask (np.ndarray): Mask for occupied cells
+
+    Returns:
+    tuple: Tuple containing the weights and indices of the candidate cells
+    """
     
     indices = []
     weights = []
@@ -64,35 +94,34 @@ def get_candidates(eta, grid, N, mask):
 
     return weights, indices
 
-def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_iter: int, N: int, tol: float, mask: np.ndarray):
+def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_size: int, N: int, tol: float, mask: np.ndarray) -> tuple:
     """
-    Runs the Successive Over-Relaxation (SOR) iterative method for solving Laplace's equation.
+    Simulate a DLA cluster growth using the SOR method.
 
-    Parameters:
-    omega (float): Relaxation factor for SOR.
-    grid (np.ndarray): 2D NumPy array representing the simulation grid (N+1, N+1).
-    max_iter (int): Maximum number of iterations before stopping.
-    N (int): Grid size (N x N domain with additional boundary layer).
-    tol (float): Convergence tolerance.
+    Args:
+    omega (float): Relaxation factor
+    eta (float): Growth probability
+    grid (np.ndarray): Initial grid
+    max_size (int): Maximum number of particles
+    N (int): Grid size
+    tol (float): Tolerance for convergence
+    mask (np.ndarray): Mask for occupied cells
 
     Returns:
-    tuple: (history, t) where history is a list of grid states and t is the iteration count.
-    """
+    tuple: Tuple containing the mask history, grid history and convergence times
+    """	
     mask_history = [mask.copy()]
     grid_history = [grid.copy()]
     convergence_times = []
-    for _ in range(1, max_iter + 1):
-        grid, t = sor_simulation(omega, grid, max_iter, N, tol, mask)
+    for _ in range(1, max_size + 1):
+        grid, t = sor_simulation(omega, grid, 1000, N, tol, mask)
         convergence_times.append(t)
         weights, indices = get_candidates(eta, grid, N, mask)
         if len(indices) > 0:
-            # Normalize to sum to 1 (assuming all weights are non-negative)
             sum = np.sum(weights)
             if sum == 0:
                 print("No food")
                 return mask_history, grid_history
-                # probabilities = np.ones_like(weights) / len(weights)
-            # else:
             probabilities = weights / sum
             # print(weights, probabilities)
 
@@ -109,39 +138,44 @@ def dla_simulation(omega: float, eta: float ,grid: np.ndarray, max_iter: int, N:
             print("No valid indices to choose from.")
         mask_history.append(mask.copy())
         grid_history.append(grid.copy())
-    print(f"Avg convergence time: {np.mean(convergence_times)}, std: {np.std(convergence_times)}")
     return mask_history, grid_history, convergence_times
+
+
+def find_optimal_omega() -> np.ndarray:
+    """ 
+    Calculate the average convergence time for different omega values
+
+    Returns:
+    np.ndarray: Array of shape (10, 2) where each row contains the average convergence time and standard deviation for a given omega value
+    """
+    results = []
+    for omega in np.linspace(1.0, 1.9, 10):
+        runs = []
+        for r in range(10):
+            grid = np.zeros((100, 100))
+            grid[0, :] = 1.0
+            mask = init_mask(100)
+            _, _, t = dla_simulation(omega, 1, grid, 1000, 100, 1e-5, mask)
+            runs.append(np.mean(t))
+        print(f"Omega: {omega}, Average t: {np.mean(runs)}, std: {np.std(runs)}")
+        results.append([np.mean(runs), np.std(runs)])
+    return np.array(results)
 
 
 if __name__ == '__main__':
     # Parameters
     N = 100            # Grid size (N x N)
-    max_iter = 1000
+    max_size = 1000
     tol = 1e-5
     omega = 1.8  # Relaxation factor
     eta = 0.2  # Growth probability
-    print(f"max_iter: {max_iter}")
+
 
     mask = init_mask(N)
-    print("Mask shape:", mask.shape)
-    print(mask)
-
     grid = np.zeros((N, N))
     grid[0, :] = 1.0
-    print("Grid shape:", grid.shape)
-    print(grid)
-
-    mask_history, grid_history, _ = dla_simulation(omega, eta, grid, max_iter, N, tol, mask)
-    
+    mask_history, grid_history, _ = dla_simulation(omega, eta, grid, max_size, N, tol, mask)
     mask_history = np.array(mask_history, dtype=bool)
-    print(f"Final mask: {mask_history[-1]}")
-    np.savetxt("mask.csv", mask_history[-1], delimiter=" ", fmt="%d")
-
-    # Find the first array that has a true value
-    final_height = np.argmax(np.any(mask_history[-1], axis=1))
-    print(f"Final height: {N - final_height}")
-    print(mask_history[-1][final_height])
-    
 
     # animate the simulation
     fig, ax = plt.subplots()
