@@ -40,3 +40,9 @@ Run notebook.ipynb in order to have all relevant, output generating functions in
 - Matplotlib
 - Numba
 
+All dependencies can be installed via `pip`.
+
+```
+pip install requirements.txt
+```
+
