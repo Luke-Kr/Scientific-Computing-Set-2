@@ -18,7 +18,7 @@ def initialize_grid(N):
 
     return u, v
 
-def apply_boundary_conditions(grid, bc_type):
+def apply_boundary_conditions(grid, bc_type, alpha=0.5, beta=1.0, gamma=0.0):
     if bc_type == "periodic":  # Periodic
         grid[0, :] = grid[-2, :]
         grid[-1, :] = grid[1, :]
@@ -34,6 +34,11 @@ def apply_boundary_conditions(grid, bc_type):
         grid[-1, :] = grid[-2, :]
         grid[:, 0] = grid[:, 1]
         grid[:, -1] = grid[:, -2]
+    elif bc_type == "robin":  # Robin (mixed) boundary conditions
+        grid[0, :] = (gamma - beta * grid[1, :]) / alpha
+        grid[-1, :] = (gamma - beta * grid[-2, :]) / alpha
+        grid[:, 0] = (gamma - beta * grid[:, 1]) / alpha
+        grid[:, -1] = (gamma - beta * grid[:, -2]) / alpha
 
 def compute_laplacian(grid):
     return (
@@ -64,11 +69,19 @@ if __name__ == '__main__':
     Du, Dv = 0.16, 0.08
     f, k = 0.035, 0.060
     dt, steps = 1.0, 10000
-    bc_type = "periodic" # Change boundary condition type here
+    bc_type = "robin" # Change boundary condition type here
 
     u, v = gray_scott_simulation(N, Du, Dv, f, k, dt, steps, bc_type)
 
-    plt.imshow(v, cmap='inferno')
-    plt.title(f'Gray-Scott Model ({bc_type} BC)')
-    plt.colorbar()
-    plt.savefig('fig/gray_scott.png')
+    # Set global font size
+    plt.rcParams.update({'font.size': 20})
+
+    # Create figure with tight layout to remove whitespace
+    fig, ax = plt.subplots(figsize=(8, 8), tight_layout=True)
+    im = ax.imshow(v, cmap='inferno')
+
+    ax.set_title(f'Gray-Scott Model ({bc_type} BC)')
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046)
+
+    # Save figure without extra whitespace
+    plt.savefig('fig/gray_scott.png', bbox_inches='tight')
