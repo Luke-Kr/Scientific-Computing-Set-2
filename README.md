@@ -1,4 +1,4 @@
-# Scientific-Computing-Set-2
+## Scientific-Computing-Set-2
 
 2.2 Monte Carlo Diffusion Limited Aggregation (DLA) Simulation
 
@@ -26,3 +26,7 @@ Clone this repository and install the required dependencies:
 git clone https://github.com/yourusername/dla-simulation.git
 cd dla-simulation
 pip install numpy matplotlib numba
+
+## Notebook
+
+Run notebook.ipynb in order to have all relevant, output generating functions inone file.
