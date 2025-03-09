@@ -1,7 +1,24 @@
+"""
+Gray-Scott Model Simulation
+
+This script simulates the Gray-Scott reaction-diffusion model using different boundary conditions.
+The model is solved on a 2D grid with periodic, Dirichlet, Neumann, or Robin boundary conditions.
+The results are visualized and saved as an image.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 def initialize_grid(N):
+    """
+    Initialize the grid with initial conditions for u and v.
+
+    Parameters:
+    N (int): Size of the grid (NxN).
+
+    Returns:
+    tuple: Initialized grids u and v.
+    """
     u = np.ones((N, N), dtype=np.float64) * 0.5
     v = np.zeros((N, N), dtype=np.float64)
 
@@ -19,6 +36,16 @@ def initialize_grid(N):
     return u, v
 
 def apply_boundary_conditions(grid, bc_type, alpha=0.5, beta=1.0, gamma=0.0):
+    """
+    Apply boundary conditions to the grid.
+
+    Parameters:
+    grid (ndarray): The grid to apply boundary conditions to.
+    bc_type (str): Type of boundary condition ('periodic', 'dirichlet', 'neumann', 'robin').
+    alpha (float): Alpha parameter for Robin boundary condition.
+    beta (float): Beta parameter for Robin boundary condition.
+    gamma (float): Gamma parameter for Robin boundary condition.
+    """
     if bc_type == "periodic":  # Periodic
         grid[0, :] = grid[-2, :]
         grid[-1, :] = grid[1, :]
@@ -41,12 +68,37 @@ def apply_boundary_conditions(grid, bc_type, alpha=0.5, beta=1.0, gamma=0.0):
         grid[:, -1] = (gamma - beta * grid[:, -2]) / alpha
 
 def compute_laplacian(grid):
+    """
+    Compute the Laplacian of the grid using finite differences.
+
+    Parameters:
+    grid (ndarray): The grid to compute the Laplacian of.
+
+    Returns:
+    ndarray: The Laplacian of the grid.
+    """
     return (
         np.roll(grid, 1, axis=0) + np.roll(grid, -1, axis=0) +
         np.roll(grid, 1, axis=1) + np.roll(grid, -1, axis=1) - 4 * grid
     )
 
 def gray_scott_simulation(N, Du, Dv, f, k, dt, steps, bc_type):
+    """
+    Run the Gray-Scott simulation.
+
+    Parameters:
+    N (int): Size of the grid (NxN).
+    Du (float): Diffusion rate of u.
+    Dv (float): Diffusion rate of v.
+    f (float): Feed rate.
+    k (float): Kill rate.
+    dt (float): Time step.
+    steps (int): Number of simulation steps.
+    bc_type (str): Type of boundary condition ('periodic', 'dirichlet', 'neumann', 'robin').
+
+    Returns:
+    tuple: Final grids u and v after simulation.
+    """
     u, v = initialize_grid(N)
 
     for _ in range(steps):
